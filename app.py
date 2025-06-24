@@ -1,105 +1,125 @@
 import streamlit as st
 import pandas as pd
+import pickle
 from pathlib import Path
+from typing import Union
 
 # -----------------------------------------------------------------------------
-# Configuration
+# Configuration (edit these filenames to match what you push to GitHub)
 # -----------------------------------------------------------------------------
-DATA_PATH = Path(__file__).parent / "sentiment_data.csv"  # default dataset
+DATA_PATH = Path(__file__).parent / "sentiment_data.csv"  # fallback CSV
+MODEL_PATH = Path(__file__).parent / "sentiment_model.pkl"  # fallback model
 
 # -----------------------------------------------------------------------------
 # Helper functions
 # -----------------------------------------------------------------------------
 @st.cache_data(show_spinner=False)
-def load_data(csv_path: Path) -> pd.DataFrame:
-    """Load and standardise the sentiment dataset.
+def load_data(source: Union[Path, str]) -> pd.DataFrame:
+    """Load a CSV containing a text column to classify."""
+    df = pd.read_csv(source)
+    df.columns = df.columns.str.lower()
 
-    The function automatically detects the comment and label columns, so the
-    CSV can use different header names (e.g. `komentar`, `full_text`, etc.)
-    without needing code changes.
-    """
-    if not csv_path.exists():
-        st.error(f"Dataset not found at {csv_path.relative_to(Path(__file__).parent)}")
-        st.stop()
-
-    df = pd.read_csv(csv_path)
-    df.columns = df.columns.str.lower()  # case‑insensitive matching
-
-    # Detect the comment column
-    comment_candidates = [
-        "komentar", "comment", "full_text", "text", "english_tweet",
+    # Attempt to auto-detect the text column
+    text_candidates = [
+        "komentar", "comment", "text", "full_text", "tweet", "review"
     ]
-    comment_col = next((c for c in comment_candidates if c in df.columns), None)
+    text_col = next((c for c in text_candidates if c in df.columns), None)
 
-    # Detect the sentiment/label column
-    label_candidates = [
-        "sentimen", "sentiment", "label", "labels",
-    ]
-    label_col = next((c for c in label_candidates if c in df.columns), None)
-
-    if comment_col is None or label_col is None:
+    if text_col is None:
         st.error(
-            "CSV must contain a column for comments and a column for sentiment/label.\n"
-            "Example column names: komentar, full_text (for comments) and sentimen, label (for sentiment)."
+            "CSV must contain a column with the comments/reviews to classify.\n"
+            "Example column names: komentar, comment, full_text, text."
         )
         st.stop()
 
-    # Keep only the two relevant columns and rename for consistency
-    df = df[[comment_col, label_col]].rename(columns={comment_col: "comment", label_col: "sentiment"})
-    return df
+    return df.rename(columns={text_col: "comment"})
+
+
+@st.cache_resource(show_spinner=False)
+def load_model(model_source: Union[Path, str]):
+    """Load a pickled scikit‑learn sentiment classifier (Pipeline)."""
+    return pickle.load(open(model_source, "rb"))
+
 
 # -----------------------------------------------------------------------------
-# Streamlit frontend
+# Streamlit app
 # -----------------------------------------------------------------------------
 
 def main() -> None:
-    st.set_page_config(
-        page_title="Sentiment Comment Filter",
-        page_icon="🗂️",
-        layout="wide",
-    )
+    st.set_page_config(page_title="ML Sentiment Classifier", page_icon="🤖", layout="wide")
+    st.title("🤖 Machine‑Learning Sentiment Classifier")
 
-    st.title("🗂️ Sentiment Comment Filter")
-    st.write(
+    st.markdown(
         """
-        Load a CSV file containing comments and their sentiment labels, then filter
-        and download the comments by sentiment category. If you don't upload your
-        own CSV, the built‑in **sentiment_data.csv** will be used.
+        **Upload** a CSV of comments *or* test a single sentence below.
+        By default, the app uses **sentiment_data.csv** and **sentiment_model.pkl** bundled in the repository.
         """
     )
 
-    # Optional CSV upload overrides default dataset
-    uploaded_file = st.file_uploader("Upload a CSV (optional)", type=["csv"])
-    if uploaded_file is not None:
-        data_source = uploaded_file
+    # Sidebar – upload model ---------------------------------------------------
+    st.sidebar.header("Model")
+    uploaded_model = st.sidebar.file_uploader("Upload a .pkl model (optional)", type=["pkl"])
+    if uploaded_model is not None:
+        model_src = uploaded_model
     else:
-        data_source = DATA_PATH
+        model_src = MODEL_PATH
 
-    df = load_data(data_source)  # type: ignore[arg-type]
+    try:
+        model = load_model(model_src)  # type: ignore[arg-type]
+    except Exception as e:
+        st.sidebar.error(f"Failed to load model: {e}")
+        st.stop()
 
-    # Sidebar controls ---------------------------------------------------------
-    st.sidebar.header("Filter options")
-    available_sentiments = sorted(df["sentiment"].dropna().unique())
-    selected_sentiments = st.sidebar.multiselect(
-        "Select sentiment(s)", options=available_sentiments, default=available_sentiments
-    )
+    # Model info
+    st.sidebar.success("Model loaded successfully ✅")
 
-    # Apply filter -------------------------------------------------------------
-    filtered_df = df[df["sentiment"].isin(selected_sentiments)]
+    # Single comment prediction ----------------------------------------------
+    st.subheader("🔍 Quick Test")
+    user_text = st.text_input("Enter a sentence to classify", "I love this product!")
+    if user_text:
+        pred = model.predict([user_text])[0]
+        st.write(f"**Predicted sentiment:** {pred}")
+        st.divider()
 
-    # Main panel ---------------------------------------------------------------
-    st.subheader("Filtered results")
-    st.write(f"Showing **{len(filtered_df):,}** comments out of **{len(df):,}**")
+    # Batch prediction on CSV --------------------------------------------------
+    st.subheader("📄 Batch Classification")
+    uploaded_csv = st.file_uploader("Upload CSV of comments (optional)", type=["csv"])
+
+    if uploaded_csv is not None:
+        data_src = uploaded_csv
+    else:
+        data_src = DATA_PATH
+
+    df = load_data(data_src)  # type: ignore[arg-type]
+
+    # Predict
+    with st.spinner("Classifying comments..."):
+        df["sentiment"] = model.predict(df["comment"].astype(str))
+
+    # Filter controls
+    st.sidebar.header("Filter results")
+    available_sentiments = sorted(df["sentiment"].unique())
+    selected = st.sidebar.multiselect("Select sentiment(s)", available_sentiments, default=available_sentiments)
+    filtered_df = df[df["sentiment"].isin(selected)]
+
+    # Display
+    st.write(f"Showing **{len(filtered_df):,}** of **{len(df):,}** classified comments.")
     st.dataframe(filtered_df, use_container_width=True)
 
-    # Download button ----------------------------------------------------------
-    csv_bytes = filtered_df.to_csv(index=False).encode("utf‑8")
+    # Download predictions
+    csv_bytes = filtered_df.to_csv(index=False).encode("utf-8")
     st.download_button(
-        label="📥 Download filtered CSV",
+        label="📥 Download predictions as CSV",
         data=csv_bytes,
-        file_name="filtered_comments.csv",
+        file_name="predicted_comments.csv",
         mime="text/csv",
     )
+
+    # Summary counts
+    st.subheader("📊 Sentiment Distribution")
+    counts = df["sentiment"].value_counts().reset_index()
+    counts.columns = ["Sentiment", "Count"]
+    st.bar_chart(counts.set_index("Sentiment"))
 
 
 if __name__ == "__main__":
