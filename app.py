@@ -5,51 +5,42 @@ st.set_page_config(page_title="Filter Label Sentimen", layout="wide")
 st.title("Aplikasi Filter Label Sentimen")
 
 # ───────────────────────────────
-# 1) Unggah dataset
+# 1) Baca dataset langsung dari file lokal
 # ───────────────────────────────
-uploaded = st.file_uploader(
-    "Upload file CSV (WAJIB memiliki kolom 'label' dan 'english_tweet')",
-    type=["csv"]
-)
+csv_path = "sentiment_data.csv"  # pastikan file ada di direktori yang sama
 
-if uploaded is None:
-    st.info("⬆️ Silakan upload CSV untuk mulai.")
-    st.stop()
-
-# ───────────────────────────────
-# 2) Baca & validasi
-# ───────────────────────────────
 try:
-    df = pd.read_csv(uploaded)
+    df = pd.read_csv(csv_path)
 except Exception as e:
-    st.error(f"Gagal membaca CSV: {e}")
+    st.error(f"Gagal membaca file CSV: {e}")
     st.stop()
 
+# ───────────────────────────────
+# 2) Validasi kolom
+# ───────────────────────────────
 if not {"label", "english_tweet"}.issubset(df.columns):
     st.error("Dataset harus memiliki kolom 'label' dan 'english_tweet'.")
     st.stop()
 
-# Buat salinan hanya kolom yang diperlukan
+# Salin kolom yang diperlukan
 df = df[["label", "english_tweet"]].copy()
 
-# Pastikan huruf kecil untuk pencocokan label
+# Normalisasi label ke huruf kecil
 df["label_lower"] = df["label"].str.lower()
 
 # ───────────────────────────────
-# 3) Dropdown label
+# 3) Dropdown pilihan label
 # ───────────────────────────────
 options = ["positif", "netral", "negatif"]
 selected = st.selectbox("Pilih label:", options)
 
-# Filter berdasarkan label
+# Filter
 filtered = df[df["label_lower"] == selected]
 
 # ───────────────────────────────
 # 4) Tampilkan hasil
 # ───────────────────────────────
 st.markdown(f"### Jumlah data label **{selected}**: {len(filtered)}")
-
-# Tampilkan kolom label & english_tweet
 st.dataframe(filtered[["label", "english_tweet"]].reset_index(drop=True))
 
 # Unduh hasil
