@@ -2,13 +2,13 @@ import streamlit as st
 import pandas as pd
 
 st.set_page_config(page_title="Filter Label Sentimen", layout="wide")
-st.title("Aplikasi Filter Label Sentimen")
+st.title("Aplikasi Filter Label Sentimen film Jumbo")
 
 # ───────────────────────────────
 # 1) Unggah dataset
 # ───────────────────────────────
 uploaded = st.file_uploader(
-    "Upload file CSV (WAJIB memiliki kolom 'label' dan 'english_tweet')",
+    "Upload file CSV",
     type=["csv"]
 )
 
