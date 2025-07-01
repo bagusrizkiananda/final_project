@@ -1,14 +1,14 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Filter Label Sentimen", layout="wide")   # tata letak lebar
+st.set_page_config(page_title="Filter Label Sentimen", layout="wide")
 st.title("Aplikasi Filter Label Sentimen")
 
 # ───────────────────────────────
 # 1) Unggah dataset
 # ───────────────────────────────
 uploaded = st.file_uploader(
-    "Upload file CSV (WAJIB memiliki kolom 'label')",
+    "Upload file CSV (WAJIB memiliki kolom 'label' dan 'english_tweet')",
     type=["csv"]
 )
 
@@ -25,23 +25,23 @@ except Exception as e:
     st.error(f"Gagal membaca CSV: {e}")
     st.stop()
 
-if "label" not in df.columns:
-    st.error("Dataset tidak memiliki kolom 'label'.")
+if not {"label", "english_tweet"}.issubset(df.columns):
+    st.error("Dataset harus memiliki kolom 'label' dan 'english_tweet'.")
     st.stop()
 
-# Hanya kolom label yang dipakai
-df = df[["label"]].copy()
+# Buat salinan hanya kolom yang diperlukan
+df = df[["label", "english_tweet"]].copy()
 
-# Pastikan huruf kecil untuk pencocokan
+# Pastikan huruf kecil untuk pencocokan label
 df["label_lower"] = df["label"].str.lower()
 
 # ───────────────────────────────
 # 3) Dropdown label
 # ───────────────────────────────
-options = ["positif", "netral", "negatif"]          # label baku
+options = ["positif", "netral", "negatif"]
 selected = st.selectbox("Pilih label:", options)
 
-# Filter
+# Filter berdasarkan label
 filtered = df[df["label_lower"] == selected]
 
 # ───────────────────────────────
@@ -49,11 +49,11 @@ filtered = df[df["label_lower"] == selected]
 # ───────────────────────────────
 st.markdown(f"### Jumlah data label **{selected}**: {len(filtered)}")
 
-# Opsional: tampilkan tabel label saja
-st.dataframe(filtered[["label"]].reset_index(drop=True))
+# Tampilkan kolom label & english_tweet
+st.dataframe(filtered[["label", "english_tweet"]].reset_index(drop=True))
 
-# Opsional: unduh hasil
-csv_bytes = filtered[["label"]].to_csv(index=False).encode("utf-8")
+# Unduh hasil
+csv_bytes = filtered[["label", "english_tweet"]].to_csv(index=False).encode("utf-8")
 st.download_button(
     "💾 Unduh hasil (CSV)",
     data=csv_bytes,
