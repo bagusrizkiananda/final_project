@@ -4,52 +4,59 @@ import pandas as pd
 st.set_page_config(page_title="Filter Label Sentimen", layout="wide")
 st.title("Aplikasi Filter Label Sentimen")
 
-# ─────────────────────────────────────
-# 1) Pilih sumber data CSV
-# ─────────────────────────────────────
-csv_options = {
-    "Sentiment Original": "sentiment_data.csv",
-    "Naive Bayes Classification": "naive_bayes_classified_data.csv"
-}
+# ───────────────────────────────
+# 1) Unggah dataset
+# ───────────────────────────────
+uploaded = st.file_uploader(
+    "Upload file CSV (WAJIB memiliki kolom 'label' dan 'english_tweet')",
+    type=["csv"]
+)
 
-selected_file_label = st.selectbox("Pilih sumber data CSV:", list(csv_options.keys()))
-csv_path = csv_options[selected_file_label]
+if uploaded is None:
+    st.info("⬆️ Silakan upload CSV untuk mulai.")
+    st.stop()
 
-# ─────────────────────────────────────
-# 2) Baca dan validasi data
-# ─────────────────────────────────────
+# ───────────────────────────────
+# 2) Baca & validasi
+# ───────────────────────────────
 try:
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(uploaded)
 except Exception as e:
-    st.error(f"Gagal membaca file '{csv_path}': {e}")
+    st.error(f"Gagal membaca CSV: {e}")
     st.stop()
 
 if not {"label", "english_tweet"}.issubset(df.columns):
-    st.error(f"File '{csv_path}' harus memiliki kolom 'label' dan 'english_tweet'.")
+    st.error("Dataset harus memiliki kolom 'label' dan 'english_tweet'.")
     st.stop()
 
-# Hanya ambil kolom yang dibutuhkan
+# Buat salinan hanya kolom yang diperlukan
 df = df[["label", "english_tweet"]].copy()
+
+# Pastikan huruf kecil untuk pencocokan label
 df["label_lower"] = df["label"].str.lower()
 
-# ─────────────────────────────────────
-# 3) Pilih label dan filter
-# ─────────────────────────────────────
+# ───────────────────────────────
+# 3) Dropdown label
+# ───────────────────────────────
 options = ["positif", "netral", "negatif"]
-selected_label = st.selectbox("Pilih label:", options)
+selected = st.selectbox("Pilih label:", options)
 
-filtered = df[df["label_lower"] == selected_label]
+# Filter berdasarkan label
+filtered = df[df["label_lower"] == selected]
 
-# ─────────────────────────────────────
-# 4) Tampilkan dan unduh hasil
-# ─────────────────────────────────────
-st.markdown(f"### Jumlah data label **{selected_label}**: {len(filtered)}")
+# ───────────────────────────────
+# 4) Tampilkan hasil
+# ───────────────────────────────
+st.markdown(f"### Jumlah data label **{selected}**: {len(filtered)}")
+
+# Tampilkan kolom label & english_tweet
 st.dataframe(filtered[["label", "english_tweet"]].reset_index(drop=True))
 
+# Unduh hasil
 csv_bytes = filtered[["label", "english_tweet"]].to_csv(index=False).encode("utf-8")
 st.download_button(
     "💾 Unduh hasil (CSV)",
     data=csv_bytes,
-    file_name=f"{selected_file_label.lower().replace(' ', '_')}_{selected_label}.csv",
+    file_name=f"label_{selected}.csv",
     mime="text/csv"
 )
