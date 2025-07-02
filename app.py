@@ -7,7 +7,7 @@ st.title("Aplikasi Filter Label Sentimen")
 # ───────────────────────────────
 # 1) Baca dataset langsung dari file lokal
 # ───────────────────────────────
-csv_path = "sentiment_data.csv"  # pastikan file ada di direktori yang sama
+csv_path = "hasil_klasifikasi.csv"  # pastikan file ada di direktori yang sama
 
 try:
     df = pd.read_csv(csv_path)
