@@ -60,5 +60,3 @@ st.download_button(
     file_name=f"label_{selected}.csv",
     mime="text/csv"
 )
-
-ubah agar menampilkan header english_tweet
